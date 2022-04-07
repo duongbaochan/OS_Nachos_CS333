@@ -27,6 +27,7 @@
 #include "ksyscall.h"
 #include "synchconsole.h"
 #include "syscall.h"
+#include "kernel.h"
 //----------------------------------------------------------------------
 // ExceptionHandler
 // 	Entry point into the Nachos kernel.  Called when a user program
@@ -53,6 +54,8 @@
 #define MAX_LENGTH_STRING 255
 #define INT_MIN -2147483647
 #define INT_MAX 2147483647
+// Define max file name length
+#define MAX_NAME_LENGTH 50
 
 void increasePC()
 {
@@ -114,6 +117,23 @@ char *User2System(int addr, int convert_length = -1)
 		str[i] = (unsigned char)oneChar;
 	}
 	return str;
+}
+
+void getUserKernelFileName(char *name)
+{
+	int address;
+	address = kernel->machine->ReadRegister(4);
+
+	// name = new char[MAX_NAME_LENGTH + 1];
+
+	for (int i = 0; i < MAX_NAME_LENGTH; ++i)
+	{
+		int ch = 0;
+		kernel->machine->ReadMem(address + i, 1, &ch);
+		if (ch == 0)
+			break;
+		name[i] = (char)ch;
+	}
 }
 
 void ExceptionHandler(ExceptionType which)
@@ -407,6 +427,38 @@ void ExceptionHandler(ExceptionType which)
 			delete[] buff;
 			increasePC();
 			return;
+
+		case SC_Create:
+			// Load file name from user
+			char *name;
+			name = new char[MAX_NAME_LENGTH + 1];
+			getUserKernelFileName(name);
+
+			// Create new file
+
+			bool check;
+			FileSystem *fileSystem;
+			fileSystem = new FileSystem();
+			check = fileSystem->Create(name);
+
+			if (check)
+			{
+				kernel->machine->WriteRegister(2, 0);
+				printf("File Created Successfully...\n");
+			}
+			else
+			{
+				kernel->machine->WriteRegister(2, -1);
+				printf("Failed Creating File...\n");
+			}
+
+			delete[] name;
+			delete[] fileSystem;
+
+			increasePC();
+			return;
+
+		case SC_Open:
 
 		default:
 			cerr << "Unexpected system call " << type << "\n";
