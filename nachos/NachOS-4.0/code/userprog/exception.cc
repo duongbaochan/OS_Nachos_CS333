@@ -426,13 +426,15 @@ void ExceptionHandler(ExceptionType which)
 				kernel->synchConsoleOut->PutChar(buff[i]);
 			delete[] buff;
 			increasePC();
-			return;
+			break;
 
 		case SC_Create:
 			// Load file name from user
+			int address;
+			address = kernel->machine->ReadRegister(4);
 			char *name;
-			name = new char[MAX_NAME_LENGTH + 1];
-			getUserKernelFileName(name);
+			name = User2System(address);
+			// getUserKernelFileName(name);
 
 			// Create new file
 
@@ -452,13 +454,42 @@ void ExceptionHandler(ExceptionType which)
 				printf("Failed Creating File...\n");
 			}
 
-			delete[] name;
-			delete[] fileSystem;
+			delete name;
+			delete fileSystem;
 
 			increasePC();
-			return;
+			break;
+
+		case SC_Remove:
+			// Load file name from user
+
+			address = kernel->machine->ReadRegister(4);
+			name = User2System(address);
+
+			// getUserKernelFileName(name);
+
+			// Remove file;
+			check = fileSystem->Remove(name);
+
+			if (check)
+			{
+				kernel->machine->WriteRegister(2, 0);
+				printf("File Deleted Successfully...\n");
+			}
+			else
+			{
+				kernel->machine->WriteRegister(2, -1);
+				printf("Failed Deleting File...\n");
+			}
+
+			delete name;
+
+			increasePC();
+			break;
 
 		case SC_Open:
+
+			break;
 
 		default:
 			cerr << "Unexpected system call " << type << "\n";
