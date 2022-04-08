@@ -6,7 +6,7 @@ int main()
 {
     int check;
     check = Create("test.txt");
-
+    check = Open("test.txt");
     Halt();
     return 0;
 }
