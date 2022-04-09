@@ -5,11 +5,17 @@
 #include "openfile.h"
 
 #define MAX_FILE 10
+#define MAX_STRING 50
+
+struct FileLoad
+{
+    char *name;
+};
 
 class FileTable
 {
 private:
-    OpenFile *fileTable[MAX_FILE];
+    FileLoad fileTable[MAX_FILE];
     int curOffset[MAX_FILE];
 
 public:
@@ -17,28 +23,45 @@ public:
     {
         for (int i = 0; i < MAX_FILE; ++i)
         {
-            fileTable[i] = NULL;
             curOffset[i] = 1;
         }
     }
-    int Open(OpenFile *file)
+    int Open(char *name)
     {
         for (int i = 0; i < MAX_FILE; i++)
         {
-            // If file is already in the table;
-            if (fileTable[i] == file)
-                return -1;
-
             // File Slot Available (curOffset = 1)
             // File Slot Used (curOffset = 0)
             if (curOffset[i] == 1)
             {
-                fileTable[i] = file;
+                fileTable[i].name = new char[MAX_FILE];
+                fileTable[i].name = name;
                 curOffset[i] = 0;
-                break;
+                return i;
+            }
+        }
+
+        // Table full
+        return -2;
+    }
+    int Close(int fid)
+    {
+        for (int i = 0; i < MAX_FILE; i++)
+        {
+            if (i = fid)
+            {
+                delete fileTable[i].name;
             }
         }
     }
-    int Close(int fid);
+
+    bool Contains(char *name)
+    {
+        for (int i = 0; i < MAX_FILE; i++)
+            if (fileTable[i].name = name)
+                return true;
+
+        return false;
+    }
 };
 #endif

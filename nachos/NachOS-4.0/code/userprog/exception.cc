@@ -495,15 +495,41 @@ void ExceptionHandler(ExceptionType which)
 			OpenFile *file;
 			file = kernel->fileSystem->Open(name);
 
+			if (file == NULL)
+			{
+				printf("Cannot find the file name!\n");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+
 			// Create opening file table
 			int id;
 
 			// Check opened file and compare or put to table
 			// -1 - Already Opened
-			// 1 - if of the table slot contains opened file
-			// 0 - Table full (Max = 10)
-			id = table.Open(file);
+			// -2 - Table full
+			// i >= 0 - Index of opening file
 
+			if (table.Contains(name))
+			{
+				printf("File Already Opened!\n");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+
+			id = table.Open(name);
+
+			if (id == -2)
+			{
+				printf("Table is full!\n");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+
+			printf("Opening file!");
 			kernel->machine->WriteRegister(2, id);
 
 			increasePC();

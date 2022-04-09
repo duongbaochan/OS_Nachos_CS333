@@ -5,12 +5,13 @@ int main()
 {
     int checkCreate, checkOpen1, checkOpen2;
 
-    checkCreate = Create("hello.txt");
-    checkOpen1 = Open("hello");
-    checkOpen2 = Open("hello");
+    checkCreate = Create("world.txt");
+    checkOpen1 = Open("hello.txt");
 
-    PrintNum(checkOpen1);
-    PrintNum(checkOpen2);
+    // // checkOpen2 = Open("hello.txt");
+
+    // PrintNum(checkOpen1);
+    // // PrintNum(checkOpen2);
 
     Halt();
 
