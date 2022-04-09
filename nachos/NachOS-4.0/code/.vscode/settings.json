@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "fstream": "cpp"
+        "syscall.h": "c",
+        "fstream": "c"
     }
 }

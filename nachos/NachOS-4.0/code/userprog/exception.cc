@@ -28,6 +28,7 @@
 #include "synchconsole.h"
 #include "syscall.h"
 #include "kernel.h"
+#include "filetable.h"
 //----------------------------------------------------------------------
 // ExceptionHandler
 // 	Entry point into the Nachos kernel.  Called when a user program
@@ -56,6 +57,8 @@
 #define INT_MAX 2147483647
 // Define max file name length
 #define MAX_NAME_LENGTH 50
+
+FileTable table = FileTable();
 
 void increasePC()
 {
@@ -426,7 +429,7 @@ void ExceptionHandler(ExceptionType which)
 				kernel->synchConsoleOut->PutChar(buff[i]);
 			delete[] buff;
 			increasePC();
-			break;
+			return;
 
 		case SC_Create:
 			// Load file name from user
@@ -437,11 +440,8 @@ void ExceptionHandler(ExceptionType which)
 			// getUserKernelFileName(name);
 
 			// Create new file
-
 			bool check;
-			FileSystem *fileSystem;
-			fileSystem = new FileSystem();
-			check = fileSystem->Create(name);
+			check = kernel->fileSystem->Create(name);
 
 			if (check)
 			{
@@ -455,10 +455,9 @@ void ExceptionHandler(ExceptionType which)
 			}
 
 			delete name;
-			delete fileSystem;
 
 			increasePC();
-			break;
+			return;
 
 		case SC_Remove:
 			// Load file name from user
@@ -469,7 +468,7 @@ void ExceptionHandler(ExceptionType which)
 			// getUserKernelFileName(name);
 
 			// Remove file;
-			check = fileSystem->Remove(name);
+			check = kernel->fileSystem->Remove(name);
 
 			if (check)
 			{
@@ -485,15 +484,30 @@ void ExceptionHandler(ExceptionType which)
 			delete name;
 
 			increasePC();
-			break;
+			return;
 
 		case SC_Open:
+			// Load file name from user
+			address = kernel->machine->ReadRegister(4);
+			name = User2System(address);
 
-			break;
+			// Open file name
+			OpenFile *file;
+			file = kernel->fileSystem->Open(name);
 
-		default:
-			cerr << "Unexpected system call " << type << "\n";
-			break;
+			// Create opening file table
+			int id;
+
+			// Check opened file and compare or put to table
+			// -1 - Already Opened
+			// 1 - if of the table slot contains opened file
+			// 0 - Table full (Max = 10)
+			id = table.Open(file);
+
+			kernel->machine->WriteRegister(2, id);
+
+			increasePC();
+			return;
 		}
 	default:
 		cerr << "Unexpected user mode exception" << (int)which << "\n";
