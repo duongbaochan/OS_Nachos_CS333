@@ -37,13 +37,47 @@
 #include "sysdep.h"
 #include "openfile.h"
 
+#define MAX_FILE_OPEN 10
+#define INPUT_TYPE 1
+#define OUTPUT_TYPE 0
+#define READONLY_TYPE 3
+#define READWRITE_TYPE 2
+#define INDEX_STDIN 1
+#define INDEX_STDOUT 0
+
 #ifdef FILESYS_STUB // Temporarily implement file system calls as
 // calls to UNIX, until the real file system
 // implementation is available
 class FileSystem
 {
 public:
-	FileSystem() {}
+	OpenFile **fileTable; // quan ly file dang open
+
+	// define ham constructor
+	FileSystem()
+	{
+		fileTable = new OpenFile *[MAX_FILE_OPEN];
+		for (int i = 0; i < MAX_FILE_OPEN; i++)
+		{
+			fileTable[i] = NULL;
+		}
+		// luon luon ton tai
+		this->Create("stdin");
+		this->Create("stdout");
+
+		fileTable[INDEX_STDIN] = this->Open("stdin");
+		fileTable[INDEX_STDOUT] = this->Open("stdout");
+	}
+	// define destructor
+	~FileSystem()
+	{
+		for (int i = 0; i < MAX_FILE_OPEN; ++i)
+		{
+			if (fileTable[i] != NULL)
+				delete fileTable[i];
+		}
+		delete[] fileTable;
+	}
 
 	bool Create(char *name)
 	{
@@ -62,6 +96,25 @@ public:
 		if (fileDescriptor == -1)
 			return NULL;
 		return new OpenFile(fileDescriptor);
+	}
+
+	// tim slot trong
+	int FindFreeSlot()
+	{
+		for (int i = 2; i < MAX_FILE_OPEN; i++)
+			if (fileTable[i] == NULL)
+				return i;
+
+		return -1;
+	}
+
+	void emptyTable()
+	{
+		for (int i = 0; i < MAX_FILE_OPEN; ++i)
+		{
+			if (fileTable[i] != NULL)
+				delete fileTable[i];
+		}
 	}
 
 	bool Remove(char *name) { return Unlink(name) == 0; }

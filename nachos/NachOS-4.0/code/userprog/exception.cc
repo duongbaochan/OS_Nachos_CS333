@@ -56,7 +56,9 @@
 #define INT_MIN -2147483647
 #define INT_MAX 2147483647
 // Define max file name length
-#define MAX_NAME_LENGTH 50
+#define MAX_NAME_LENGTH 32
+#define RW_ERROR_FILE -1
+#define RW_END_FILE -2
 
 FileTable table = FileTable();
 
@@ -487,51 +489,303 @@ void ExceptionHandler(ExceptionType which)
 			return;
 
 		case SC_Open:
-			// Load file name from user
-			address = kernel->machine->ReadRegister(4);
-			name = User2System(address);
-
-			// Open file name
+			// input: char*name, int type
+			// output: 0 neu la input,1 la output,id neu thanh cong,-1 neuu that bai
+			// muc dich:mo file
 			OpenFile *file;
-			file = kernel->fileSystem->Open(name);
+			int virAddr1;
+			char *fileName;
+			int freeSlot;
+			// doc lenh tu thanh ghi
+			virAddr1 = kernel->machine->ReadRegister(4);
+			type = kernel->machine->ReadRegister(5);
 
-			if (file == NULL)
+			fileName = User2System(virAddr1, MAX_NAME_LENGTH);
+
+			freeSlot = kernel->fileSystem->FindFreeSlot(); // kiem freeslot
+			if (freeSlot != -1)
 			{
-				printf("Cannot find the file name!\n");
+				file = kernel->fileSystem->Open(fileName);
+
+				if (file != NULL)
+				{
+					kernel->fileSystem->fileTable[freeSlot] = file;
+					printf("Open file successfully!!\n");
+					kernel->machine->WriteRegister(2, freeSlot); // mo file thanh cong
+				}
+				else
+				{
+					printf("Open file failed!!\n");
+					kernel->machine->WriteRegister(2, -1);
+				}
+			}
+			else
+			{
+				printf("Table is full!!!\n");
+				kernel->machine->WriteRegister(2, -1);
+			}
+			delete[] fileName;
+			increasePC();
+			return;
+
+		case SC_Close:
+
+			// input : int id
+			//  output: 0 thanh cong,1 that bai
+			// muc dich:dong file
+			int file_Id;
+			file_Id = kernel->machine->ReadRegister(4); // doc tu thanh ghi
+
+			if (file_Id >= 2 && file_Id <= MAX_FILE_OPEN - 1)
+			{
+				if (kernel->fileSystem->fileTable[file_Id] != NULL)
+				{
+
+					delete kernel->fileSystem->fileTable[file_Id]; // xoa danh dau trong fileTable
+
+					kernel->fileSystem->fileTable[file_Id] = NULL;
+					printf("Close file succesfully!!!\n");
+					kernel->machine->WriteRegister(2, 0);
+				}
+				else
+				{
+					printf("This file has not opened yet!!!\n");
+					kernel->machine->WriteRegister(2, -1);
+				}
+			}
+			else
+			{
+				printf("Can not close Console IO!!!\n");
+				kernel->machine->WriteRegister(2, -1);
+			}
+
+			increasePC();
+			return;
+
+		case SC_Read:
+			// Input: buffer(char*), so ky tu(int), id cua file(OpenFileID)
+			// Output: -1: Loi, So byte read thuc su: Thanh cong, -2: Thanh cong
+			// Cong dung: Doc file voi tham so la buffer, so ky tu cho phep va id cua
+			// file
+
+			int virAddr_read;	// chua dia chi chuoi buffer
+			int charcount_read; // chua charcount la so ky tu duoc doc
+			int id_read;		// id cua file
+			int curPosition_read;
+			int newPosition_read;
+			char *buffer_read;
+			int readBytes_read;
+
+			printf("abc!!\n");
+			DEBUG(dbgFile, "\n SC_Read call ...");
+			DEBUG(dbgFile, "\n Reading virtual address of buffer");
+			virAddr_read = kernel->machine->ReadRegister(4);
+			DEBUG(dbgFile, "\n Reading charcount.");
+			charcount_read = kernel->machine->ReadRegister(5);
+			DEBUG(dbgFile, "\n Reading id.");
+			id_read = kernel->machine->ReadRegister(6);
+
+			// Kiem tra file id co hop le
+			if (id_read < 0 || id_read >= MAX_FILE_OPEN)
+			{
+				printf("\nInvalid file id.");
 				kernel->machine->WriteRegister(2, -1);
 				increasePC();
 				return;
 			}
 
-			// Create opening file table
-			int id;
-
-			// Check opened file and compare or put to table
-			// -1 - Already Opened
-			// -2 - Table full
-			// i >= 0 - Index of opening file
-
-			if (table.Contains(name))
+			// Kiem tra file co ton tai khong
+			if (kernel->fileSystem->fileTable[id_read] == NULL)
 			{
-				printf("File Already Opened!\n");
-				kernel->machine->WriteRegister(2, -1);
+				printf("\nFile does not exist in file table");
+				kernel->machine->WriteRegister(2, RW_ERROR_FILE);
 				increasePC();
 				return;
 			}
 
-			id = table.Open(name);
-
-			if (id == -2)
+			// Truong hop doc file stdout
+			if (id_read == INDEX_STDOUT)
 			{
-				printf("Table is full!\n");
-				kernel->machine->WriteRegister(2, -1);
+				printf("\nCan't read file stdout.");
+				kernel->machine->WriteRegister(2, RW_ERROR_FILE);
 				increasePC();
 				return;
 			}
 
-			printf("Opening file!");
-			kernel->machine->WriteRegister(2, id);
+			// Truong hop file doc duoc
 
+			curPosition_read = kernel->fileSystem->fileTable[id_read]
+								   ->getCurrentOffset(); // Lay vi tri current position
+			buffer_read = new char[charcount_read];
+
+			// Truong hop doc file binh thuong
+			if ((kernel->fileSystem->fileTable[id_read]->Read(buffer_read, charcount_read)) > 0)
+			{
+				// So byte thuc su = newPosition - curPosition
+				newPosition_read = kernel->fileSystem->fileTable[id_read]->getCurrentOffset();
+				// Copy chuoi tu vung nho System Space sang User Space voi buffer co do
+				// dai la readBytes (so byte that su da doc)
+				readBytes_read = newPosition_read - curPosition_read;
+				System2User(virAddr_read, readBytes_read, buffer_read);
+
+				kernel->machine->WriteRegister(2, readBytes_read);
+			}
+			else // Truong hop con lai: doc va cham toi cuoi file tra ve -2
+			{
+				kernel->machine->WriteRegister(2, RW_END_FILE);
+			}
+
+			delete buffer_read;
+			increasePC();
+			return;
+
+		case SC_Write:
+			// Input: buffer(char*), so ky tu(int), id cua file(OpenFileID)
+			// Output: -1: Loi, So byte write thuc su: Thanh cong, -2: Thanh cong
+			// Cong dung: Ghi file voi tham so la buffer, so ky tu cho phep va id cua
+			// file
+			int virAddr_write;	 // chua dia chi chuoi buffer
+			int charcount_write; // chua charcount la so ky tu duoc doc
+			int id_write;		 // id cua file
+
+			int curPosition_write;
+			int newPosition_write;
+			char *buffer_write;
+			int readBytes_write;
+
+			DEBUG(dbgFile, "\n SC_Read call ...");
+			DEBUG(dbgFile, "\n Reading virtual address of buffer");
+			virAddr_write = kernel->machine->ReadRegister(4);
+			DEBUG(dbgFile, "\n Reading charcount.");
+			charcount_write = kernel->machine->ReadRegister(5);
+			DEBUG(dbgFile, "\n Reading id.");
+			id_write = kernel->machine->ReadRegister(6);
+
+			// Kiem tra file id co hop le
+			if (id_write < 0 || id_write > MAX_FILE_OPEN)
+			{
+				printf("\nInvalid file id.");
+				kernel->machine->WriteRegister(2, RW_ERROR_FILE);
+				increasePC();
+				return;
+			}
+
+			// Kiem tra file co ton tai khong
+			if (kernel->fileSystem->fileTable[id_write] == NULL)
+			{
+				printf("\nFile does not exist in file table");
+				kernel->machine->WriteRegister(2, RW_ERROR_FILE);
+				increasePC();
+				return;
+			}
+
+			// Xet truong hop ghi vao file only read hoac file stdin thi tra ve
+			// RW_ERROR_FILE
+			if (id_write == INDEX_STDIN)
+			{
+				printf("\nCan't write in file stdin.");
+				kernel->machine->WriteRegister(2, RW_ERROR_FILE);
+				increasePC();
+				return;
+			}
+
+			curPosition_write = kernel->fileSystem->fileTable[id_write]
+									->getCurrentOffset(); // Kiem tra thanh cong thi lay vi
+														  // tri curPosition
+			buffer_write = User2System(virAddr_write,
+									   charcount_write); // Copy vung nho User Space sang System
+														 // space voi buffer dai charcount bytes
+
+			if (id_write == INDEX_STDOUT) // Xet truong hop file stdout
+			{
+				int pos = 0;
+				while (buffer_write[pos] != '\0')
+				{
+
+					// write moi byte trong file ra sdt out
+					// gSynchConsole->Write(buffer + pos, 1); // Su dung ham Write cua lop
+					// SynchConsole
+					kernel->synchConsoleOut->PutChar((buffer_write + pos)[0]);
+					// den byte tiep theo
+					pos++;
+				}
+
+				kernel->machine->WriteRegister(
+					2, pos - 1); // Tra ve so byte thuc su write duoc
+				delete buffer_write;
+				increasePC();
+				return;
+			}
+			else
+			{
+				// Xet truong hop ghi file read & write thi tra ve so byte thuc su
+				if ((kernel->fileSystem->fileTable[id_write]->Write(buffer_write, charcount_write)) > 0)
+				{
+
+					// So byte thuc su = newPosition - curPosition
+					newPosition_write = kernel->fileSystem->fileTable[id_write]->getCurrentOffset();
+					kernel->machine->WriteRegister(2, newPosition_write - curPosition_write);
+				}
+				else
+				{
+					kernel->machine->WriteRegister(2, RW_END_FILE);
+				}
+			}
+			delete buffer_write;
+			increasePC();
+			return;
+
+		case SC_Seek:
+			// Input: vi tri can di chuyen, id cua file
+			// Output: loi: -1,
+			// neu vi tri truyen vao: -1 => length of file
+			// khac: tra ve vi tri da di chuyen den
+
+			// Purpose: Di chuyen con tro file den 1 vi tri trong file
+			int position_seek = kernel->machine->ReadRegister(4); // vi tri chuyen den
+			int id_seek = kernel->machine->ReadRegister(5);		  // id file
+
+			// Kiem tra id co nam ngoai bang mo ta file
+			if (id_seek < 0 || id_seek >= MAX_FILE_OPEN)
+			{
+				printf("\nLoi di chuyen con tro vi id nam ngoai bang mo ta file.");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+			// Kiem tra file co ton tai khong
+			if (kernel->fileSystem->fileTable[id_seek] == NULL)
+			{
+				printf("\nLoi di chuyen con tro vi file nay khong ton tai.");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+			// Seek voi cac file console
+			if (id_seek == 0 || id_seek == 1)
+			{
+				printf("\nLoi di chuyen con tro tren file console.");
+				kernel->machine->WriteRegister(2, -1);
+				increasePC();
+				return;
+			}
+			// position == -1, tra ve length
+			if (position_seek == -1)
+			{
+				position_seek = kernel->fileSystem->fileTable[id_seek]->Length();
+			}
+			if (position_seek > kernel->fileSystem->fileTable[id_seek]->Length() ||
+				position_seek < 0) // Kiem tra vi tri hop le
+			{
+				printf("\nLoi di chuyen con tro file den vi tri nay.");
+				kernel->machine->WriteRegister(2, -1);
+			}
+			else
+			{
+				// Di chuyen file thanh cong
+				kernel->fileSystem->fileTable[id_seek]->Seek(position_seek);
+				kernel->machine->WriteRegister(2, position_seek);
+			}
 			increasePC();
 			return;
 		}
