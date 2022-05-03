@@ -576,7 +576,6 @@ void ExceptionHandler(ExceptionType which)
 			char *buffer_read;
 			int readBytes_read;
 
-			printf("abc!!\n");
 			DEBUG(dbgFile, "\n SC_Read call ...");
 			DEBUG(dbgFile, "\n Reading virtual address of buffer");
 			virAddr_read = kernel->machine->ReadRegister(4);

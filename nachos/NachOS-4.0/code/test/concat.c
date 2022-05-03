@@ -9,7 +9,7 @@ int main()
     char buffer[500];
     int fileid, filesz;
 
-    fileid = Open("dbchan.txt");
+    fileid = Open("a.txt");
     if (fileid == -1)
     {
         PrintString("Error reading file.");
@@ -25,7 +25,7 @@ int main()
     }
     Close(fileid);
 
-    fileid = Open("dbchan1.txt");
+    fileid = Open("b.txt");
     if (fileid == -1)
     {
         PrintString("Error reading file.");
@@ -40,7 +40,7 @@ int main()
     }
     Close(fileid);
 
-    fileid = Open("dbchan123.txt");
+    fileid = Open("c.txt");
 
     Write(buffer, i + j, fileid);
     Close(fileid);

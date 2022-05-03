@@ -3,7 +3,7 @@
 
 int main()
 {
-    PrintNum(Create("dbchan123.txt"));
+    PrintNum(Create("ddphuoc123.txt"));
     Halt();
 
     return 0;

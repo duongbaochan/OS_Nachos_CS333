@@ -3,7 +3,7 @@
 int main()
 {
     int check;
-    check = Remove("test.txt");
+    check = Remove("ddphuoc123.txt");
     PrintNum(check);
 
     Halt();

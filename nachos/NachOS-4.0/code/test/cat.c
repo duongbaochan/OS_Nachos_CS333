@@ -5,7 +5,7 @@ int main()
     char result[255];
     int fOutId;
     int size;
-    fOutId = Open("dbchan.txt");
+    fOutId = Open("ddphuoc123.txt");
 
     // Doc toi da 255 ky tu
     size = Read(result, 255, fOutId);
